@@ -89,15 +89,14 @@ class OneModel(nn.Module):
                                         resnet.conv3, resnet.bn3, resnet.relu3, resnet.maxpool)
             self.layer1, self.layer2, self.layer3, self.layer4 = resnet.layer1, resnet.layer2, resnet.layer3, resnet.layer4
 
-            ##将blcok3和block4的卷积改成空洞卷积，提高感受野
             for n, m in self.layer3.named_modules():
                 if 'conv2' in n:
-                    m.dilation, m.padding, m.stride = (2, 2), (2, 2), (1, 1)  # 空洞卷积
+                    m.dilation, m.padding, m.stride = (2, 2), (2, 2), (1, 1)
                 elif 'downsample.0' in n:
                     m.stride = (1, 1)
             for n, m in self.layer4.named_modules():
                 if 'conv2' in n:
-                    m.dilation, m.padding, m.stride = (4, 4), (4, 4), (1, 1)  # 空洞卷积
+                    m.dilation, m.padding, m.stride = (4, 4), (4, 4), (1, 1)
                 elif 'downsample.0' in n:
                     m.stride = (1, 1)
 
@@ -229,9 +228,9 @@ class OneModel(nn.Module):
             if self.vgg:
                 query_feat_2 = F.interpolate(query_feat_2, size=(query_feat_3.size(2), query_feat_3.size(3)),
                                              mode='bilinear', align_corners=True)
-        # query feature由2和3block拼接获得
+
         query_feat = torch.cat([query_feat_3, query_feat_2], 1)
-        query_feat = self.down_query(query_feat)  # 获得query feature
+        query_feat = self.down_query(query_feat)
 
 
         #   Support Feature
@@ -252,18 +251,18 @@ class OneModel(nn.Module):
                 supp_feat_3 = self.layer3(supp_feat_2)
                 mask = F.interpolate(mask, size=(supp_feat_3.size(2), supp_feat_3.size(3)), mode='bilinear',
                                      align_corners=True)
-                supp_feat_4 = self.layer4(supp_feat_3 * mask)  # 作为先验掩码基础
+                supp_feat_4 = self.layer4(supp_feat_3 * mask)
                 supp_feat_4_ori = self.layer4(supp_feat_3)  
                 final_supp_list.append(supp_feat_4)
                 if self.vgg:
                     supp_feat_2 = F.interpolate(supp_feat_2, size=(supp_feat_3.size(2), supp_feat_3.size(3)),
                                                 mode='bilinear', align_corners=True)
 
-            supp_feat = torch.cat([supp_feat_3, supp_feat_2], 1)  # 获得support feature
+            supp_feat = torch.cat([supp_feat_3, supp_feat_2], 1)
             supp_feat = self.down_supp(supp_feat)
             bp_mask = F.relu(1-mask)
-            supp_feat_fp = Weighted_GAP(supp_feat_4_ori, mask)  ##获得掩膜平均池化GAP
-            supp_feat_bp = Weighted_GAP(supp_feat_4_ori, bp_mask)  ##获得掩膜平均池化GAP
+            supp_feat_fp = Weighted_GAP(supp_feat_4_ori, mask)
+            supp_feat_bp = Weighted_GAP(supp_feat_4_ori, bp_mask)
             supp_feat_fp_list.append(supp_feat_fp)
             supp_feat_bp_list.append(supp_feat_bp)
             query_feat_attn, supp_feat_attn,q_map= self.attention_fuse_module(query_feat, supp_feat) #bs,c,h,w
@@ -271,24 +270,24 @@ class OneModel(nn.Module):
             feature_q_list.append(query_feat_attn)
             q_map_list.append(q_map)
 
-            supp_feat = Weighted_GAP(supp_feat_attn, mask)  ##获得掩膜平均池化GAP
+            supp_feat = Weighted_GAP(supp_feat_attn, mask)
             supp_feat_list.append(supp_feat)
 
         corr_query_mask_list = []
         cosine_eps = 1e-7
-        # 先验掩码
+
         for i, tmp_supp_feat in enumerate(final_supp_list):
             resize_size = tmp_supp_feat.size(2)
             tmp_mask = F.interpolate(mask_list[i], size=(resize_size, resize_size), mode='bilinear', align_corners=True)
 
             tmp_supp_feat_4 = tmp_supp_feat * tmp_mask
-            q = query_feat_4  # 高纬查询特征
-            s = tmp_supp_feat_4  # 高纬支持特征
+            q = query_feat_4
+            s = tmp_supp_feat_4
             bsize, ch_sz, sp_sz, _ = q.size()[:]
 
             tmp_query = q
-            tmp_query = tmp_query.contiguous().view(bsize, ch_sz, -1)  # [batch,C,HW]
-            tmp_query_norm = torch.norm(tmp_query, 2, 1, True)  # 在通道纬度进行2范数计算，即对每个像素向量求模
+            tmp_query = tmp_query.contiguous().view(bsize, ch_sz, -1)
+            tmp_query_norm = torch.norm(tmp_query, 2, 1, True)
 
             tmp_supp = s
             tmp_supp = tmp_supp.contiguous().view(bsize, ch_sz, -1)  # [batch,C,HW]
@@ -296,15 +295,15 @@ class OneModel(nn.Module):
             tmp_supp_norm = torch.norm(tmp_supp, 2, 2, True)
 
             similarity = torch.bmm(tmp_supp, tmp_query) / (
-                        torch.bmm(tmp_supp_norm, tmp_query_norm) + cosine_eps)  # 获得[batch,HW,HW]的相似图
-            similarity = similarity.max(1)[0].view(bsize, sp_sz * sp_sz)  # 获得查询图像每个像素的最大相似度值,[batch,HW]
+                        torch.bmm(tmp_supp_norm, tmp_query_norm) + cosine_eps)
+            similarity = similarity.max(1)[0].view(bsize, sp_sz * sp_sz)
             similarity = (similarity - similarity.min(1)[0].unsqueeze(1)) / (
-                        similarity.max(1)[0].unsqueeze(1) - similarity.min(1)[0].unsqueeze(1) + cosine_eps)  # 最大最小化
+                        similarity.max(1)[0].unsqueeze(1) - similarity.min(1)[0].unsqueeze(1) + cosine_eps)
             corr_query = similarity.view(bsize, 1, sp_sz, sp_sz)  # [bacth,1,H,W]
             corr_query = F.interpolate(corr_query, size=(query_feat_3.size()[2], query_feat_3.size()[3]),
                                        mode='bilinear', align_corners=True)
             corr_query_mask_list.append(corr_query)
-        corr_query_mask = torch.cat(corr_query_mask_list, 1).mean(1).unsqueeze(1)  # 对于k-shot情况，平均所有先验掩码，[batch,1,H,W]
+        corr_query_mask = torch.cat(corr_query_mask_list, 1).mean(1).unsqueeze(1)
         corr_query_mask = F.interpolate(corr_query_mask, size=(query_feat.size(2), query_feat.size(3)), mode='bilinear',
                                         align_corners=True)
 
@@ -322,9 +321,6 @@ class OneModel(nn.Module):
             for i in range(1, len(q_map_list)):
                 q_map = q_map+ q_map_list[i]
             q_map =q_map/ len(q_map_list)
-
-
-
 
         if self.training:
             if current_iter >= start_loss:
@@ -387,16 +383,16 @@ class OneModel(nn.Module):
 
         bin = int(query_feat_attn.shape[2])
         query_feat_bin = nn.AdaptiveAvgPool2d(bin)(query_feat_attn)
-        supp_feat_bin = supp_feat.expand(-1, -1, bin, bin)  # 将掩码平均池化expand成相同尺寸
+        supp_feat_bin = supp_feat.expand(-1, -1, bin, bin)
         corr_mask_bin = F.interpolate(corr_query_mask, size=(bin, bin), mode='bilinear',
                                       align_corners=True)  # 将先验掩码resize
         q_map = F.interpolate(q_map, size=(bin, bin), mode='bilinear',
                                 align_corners=True)
 
         merge_feat_bin = torch.cat([query_feat_bin, supp_feat_bin, corr_mask_bin, q_map, class_prob], 1)
-        merge_feat_bin = self.init_merge(merge_feat_bin)  # 将三者融合起来
+        merge_feat_bin = self.init_merge(merge_feat_bin)
 
-        merge_feat_bin = self.beta_conv(merge_feat_bin) + merge_feat_bin  ##融合
+        merge_feat_bin = self.beta_conv(merge_feat_bin) + merge_feat_bin
         merge_feat = F.interpolate(merge_feat_bin, size=(query_feat.size(2), query_feat.size(3)),
                                            mode='bilinear', align_corners=True)
 
@@ -425,9 +421,9 @@ class OneModel(nn.Module):
             main_loss = self.criterion(out, y.long())
             aux_loss  = self.criterion(out_0,y.long())
 
-            proto_dict ,bp_proto_dict= self.contrast_loss(supp_feat_fp_list,supp_feat_bp_list,classes, proto_dict,bp_proto_dict)   #FP_1 :8,256,1,1 supp_feat_liat:[Tensor[8.256,1,1] classes:[Tensor[8]]
+            proto_dict ,bp_proto_dict= self.contrast_loss(supp_feat_fp_list,supp_feat_bp_list,classes, proto_dict,bp_proto_dict)
 
-            return out.max(1)[1], main_loss, aux_loss, proto_dict,bp_proto_dict# out.max(1)[1]返回预测mask的结果，即为矩阵索引值，若out.max(1)[0]则返回预测结果的概率最大值，而非索引值
+            return out.max(1)[1], main_loss, aux_loss, proto_dict,bp_proto_dict
         else:
             return out
 
@@ -454,8 +450,8 @@ class OneModel(nn.Module):
             else:
                 bg_feat = cur_feat[:, torch.topk(pred_bg[epi], 12).indices]  # .mean(-1)
 
-            fg_proto = fg_feat.mean(-1)  # MAP 1024,1,前景原型
-            bg_proto = bg_feat.mean(-1)  # 1024,1     背景原型
+            fg_proto = fg_feat.mean(-1)
+            bg_proto = bg_feat.mean(-1)
             fg_ls.append(fg_proto.unsqueeze(0))
             bg_ls.append(bg_proto.unsqueeze(0))
         new_fg = torch.cat(fg_ls, 0).unsqueeze(-1).unsqueeze(-1)  # k*c>>>k*c*1*1

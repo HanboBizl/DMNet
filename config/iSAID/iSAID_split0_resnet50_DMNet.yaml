@@ -1,5 +1,5 @@
 Data:
-  data_root:  /workspace/BAM/data/iSAID
+  data_root:  /workspace/DMNet/data/iSAID
   base_data_root: ./data/base_annotation/pascal/
   train_list: ./lists/iSAID/train.txt
   val_list: ./lists/iSAID/val.txt
@@ -8,9 +8,9 @@ Data:
 
 Train:
   # Aug
-  train_h: 473
-  train_w: 473
-  val_size: 473
+  train_h: 256
+  train_w: 256
+  val_size: 256
   scale_min: 0.9  # minimum random scale
   scale_max: 1.1 # maximum random scale
   rotate_min: -10  # minimum random rotate
@@ -21,11 +21,11 @@ Train:
   # Dataset & Mode
   split: 0
   shot: 1
-  data_set: 'LoveDA'
+  data_set: 'iSAID'
   use_split_coco: False # True means FWB setting
   # Optimizer
-  batch_size: 4 # batch size for training (bs8 for 1GPU)
-  base_lr: 0.0015
+  batch_size: 8 # batch size for training (bs8 for 1GPU)
+  base_lr: 0.005
   epochs: 200
   start_epoch: 0
   stop_interval: 75 # stop when the best result is not updated for "stop_interval" epochs
@@ -53,18 +53,19 @@ Train:
   zoom_factor: 8  # zoom factor for final prediction during training, be in [1, 2, 4, 8]
 
 Method:
-  layers: 50
-  vgg: False
-  aux_weight: 1.0
-  thresh_fp: 0.7
-  thresh_bp: 0.6
-  fuse_select: True
-  start_loss: 0.8
+  layers: 50  # backbone layers
+  vgg: False  #choose backbone
+  aux_weight: 1.0 # aux_loss weight
+  thresh_fp: 0.7  # CSRM parameter of Foraground
+  thresh_bp: 0.6  # CSRM parameter of Foraground
+  fuse_select: True # CSRM parameter
+  start_loss: 0.8   # KMS start
 
+# for testing
 Test_Finetune:
-  weight: "/workspace/BAM/exp/HBNet_DA/LoveDA/HBNet_co_cl_kshot/split0/resnet50_12_1_resnet50/snapshot/train5_epoch_11_0.2462.pth"
+  weight: "/workspace/exp/res50_kshot/split0/res50_12_10_copy/snapshot/train5_epoch_72_0.5767.pth"  # checkpoint
+  proto_dict_path: "/workspace/exp/res50_kshot/split2/res50_12_10_copy/snapshotproto_dict.pth" # the path of the KMS dict (only FP for testing)
   ann_type: 'mask' # mask/bbox
-
 
 
 ## deprecated multi-processing training
