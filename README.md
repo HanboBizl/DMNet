@@ -52,7 +52,6 @@ This repository contains the source code for our paper "*Not just Learning from 
   mkdir backbones
   ```
 - Download the backbones from our [[Baidu]](https://pan.baidu.com/s/1l9CPkmP69sbxzUYUtwVISg?pwd=n314)(code: n314) and put it in the `backbones` directory.
-- 
 ## Getting Started
 
 ### Training 
